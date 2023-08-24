@@ -15,6 +15,9 @@
 #include <learnopengl/model.h>
 
 #include <iostream>
+#include<vector>
+#include<cstdlib>
+#include<ctime>
 
 void framebuffer_size_callback(GLFWwindow *window, int width, int height);
 
@@ -60,7 +63,7 @@ struct ProgramState {
     float backpackScale = 1.0f;
     PointLight pointLight;
     ProgramState()
-            : camera(glm::vec3(0.0f, 0.0f, 3.0f)) {}
+        : camera(glm::vec3(0.0f, 0.0f, 3.0f)) {}
 
     void SaveToFile(std::string filename);
 
@@ -85,15 +88,15 @@ void ProgramState::LoadFromFile(std::string filename) {
     std::ifstream in(filename);
     if (in) {
         in >> clearColor.r
-           >> clearColor.g
-           >> clearColor.b
-           >> ImGuiEnabled
-           >> camera.Position.x
-           >> camera.Position.y
-           >> camera.Position.z
-           >> camera.Front.x
-           >> camera.Front.y
-           >> camera.Front.z;
+            >> clearColor.g
+            >> clearColor.b
+            >> ImGuiEnabled
+            >> camera.Position.x
+            >> camera.Position.y
+            >> camera.Position.z
+            >> camera.Front.x
+            >> camera.Front.y
+            >> camera.Front.z;
     }
 }
 
@@ -140,7 +143,7 @@ int main() {
     stbi_set_flip_vertically_on_load(true);
 
     programState = new ProgramState;
-    programState->LoadFromFile("resources/program_state.txt");
+    //programState->LoadFromFile("resources/program_state.txt");
     if (programState->ImGuiEnabled) {
         glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
     }
@@ -165,18 +168,38 @@ int main() {
 
     // load models
     // -----------
-    Model ourModel("resources/objects/backpack/backpack.obj");
+    Model ourModel("resources/objects/dungeon/model/obj/wall.obj");
     ourModel.SetShaderTextureNamePrefix("material.");
 
+    Model models[]={
+        Model("resources/objects/dungeon/model/obj/wall.obj"),
+        Model("resources/objects/dungeon/model/obj/stairs.obj"),
+        Model("resources/objects/dungeon/model/obj/wall-narrow.obj"),
+        Model("resources/objects/dungeon/model/obj/wood-support.obj"),
+        Model("resources/objects/dungeon/model/obj/floor.obj"),
+        Model("resources/objects/dungeon/model/obj/dirt.obj"),
+        Model("resources/objects/dungeon/model/obj/barrel.obj"),
+        Model("resources/objects/dungeon/model/obj/trap.obj"),
+    };
+    srand(time(NULL));
+    int n=20;
+    int map[20][20];
+    for(int i=0;i<n;i++){
+        for(int j=0;j<n;j++){
+            map[i][j]=rand()%8;
+        }
+    }
+
+
     PointLight& pointLight = programState->pointLight;
-    pointLight.position = glm::vec3(4.0f, 4.0, 0.0);
+    pointLight.position = glm::vec3(8.0f,8.0f,8.0f);
     pointLight.ambient = glm::vec3(0.1, 0.1, 0.1);
-    pointLight.diffuse = glm::vec3(0.6, 0.6, 0.6);
+    pointLight.diffuse = glm::vec3(1.0,1.0,1.0);
     pointLight.specular = glm::vec3(1.0, 1.0, 1.0);
 
     pointLight.constant = 1.0f;
-    pointLight.linear = 0.09f;
-    pointLight.quadratic = 0.032f;
+    pointLight.linear = 0.0f;
+    pointLight.quadratic = 0.0f;
 
 
 
@@ -199,12 +222,12 @@ int main() {
 
         // render
         // ------
-        glClearColor(programState->clearColor.r, programState->clearColor.g, programState->clearColor.b, 1.0f);
+        glClearColor(0.0f,0.0f,0.0f,1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         // don't forget to enable shader before setting uniforms
         ourShader.use();
-        pointLight.position = glm::vec3(4.0 * cos(currentFrame), 4.0f, 4.0 * sin(currentFrame));
+        //        pointLight.position = glm::vec3(10.0 * cos(currentFrame), 0.0f, 10.0 * sin(currentFrame));
         ourShader.setVec3("pointLight.position", pointLight.position);
         ourShader.setVec3("pointLight.ambient", pointLight.ambient);
         ourShader.setVec3("pointLight.diffuse", pointLight.diffuse);
@@ -227,10 +250,18 @@ int main() {
                                programState->backpackPosition); // translate it down so it's at the center of the scene
         model = glm::scale(model, glm::vec3(programState->backpackScale));    // it's a bit too big for our scene, so scale it down
         ourShader.setMat4("model", model);
-        ourModel.Draw(ourShader);
+        //        ourModel.Draw(ourShader);
+        for(int i=0;i<n;i++){
+            for(int j=0;j<n;j++){
+                model=
+                    glm::rotate(glm::translate(glm::mat4(1.0),glm::vec3(i,0,j)),0.0f,glm::vec3(0,1,0));
+                ourShader.setMat4("model",model);
+                models[map[i][j]].Draw(ourShader);
+            }
+        }
 
-        if (programState->ImGuiEnabled)
-            DrawImGui(programState);
+        //        if (programState->ImGuiEnabled)
+        //            DrawImGui(programState);
 
 
 
