@@ -63,7 +63,7 @@ struct ProgramState {
     float backpackScale = 1.0f;
     PointLight pointLight;
     ProgramState()
-        : camera(glm::vec3(0.0f, 0.0f, 3.0f)) {}
+            : camera(glm::vec3(0.0f, 0.0f, 3.0f)) {}
 
     void SaveToFile(std::string filename);
 
@@ -88,15 +88,15 @@ void ProgramState::LoadFromFile(std::string filename) {
     std::ifstream in(filename);
     if (in) {
         in >> clearColor.r
-            >> clearColor.g
-            >> clearColor.b
-            >> ImGuiEnabled
-            >> camera.Position.x
-            >> camera.Position.y
-            >> camera.Position.z
-            >> camera.Front.x
-            >> camera.Front.y
-            >> camera.Front.z;
+           >> clearColor.g
+           >> clearColor.b
+           >> ImGuiEnabled
+           >> camera.Position.x
+           >> camera.Position.y
+           >> camera.Position.z
+           >> camera.Front.x
+           >> camera.Front.y
+           >> camera.Front.z;
     }
 }
 
@@ -165,6 +165,7 @@ int main() {
     // build and compile shaders
     // -------------------------
     Shader ourShader("resources/shaders/2.model_lighting.vs", "resources/shaders/2.model_lighting.fs");
+    Shader waterShader("resources/shaders/water.vs", "resources/shaders/water.fs");
 
     // load models
     // -----------
@@ -189,7 +190,7 @@ int main() {
             map[i][j]=rand()%8;
         }
     }
-
+    Model water("resources/objects/water/water.obj");
 
     PointLight& pointLight = programState->pointLight;
     pointLight.position = glm::vec3(8.0f,8.0f,8.0f);
@@ -227,7 +228,7 @@ int main() {
 
         // don't forget to enable shader before setting uniforms
         ourShader.use();
-        //        pointLight.position = glm::vec3(10.0 * cos(currentFrame), 0.0f, 10.0 * sin(currentFrame));
+//        pointLight.position = glm::vec3(10.0 * cos(currentFrame), 0.0f, 10.0 * sin(currentFrame));
         ourShader.setVec3("pointLight.position", pointLight.position);
         ourShader.setVec3("pointLight.ambient", pointLight.ambient);
         ourShader.setVec3("pointLight.diffuse", pointLight.diffuse);
@@ -250,7 +251,7 @@ int main() {
                                programState->backpackPosition); // translate it down so it's at the center of the scene
         model = glm::scale(model, glm::vec3(programState->backpackScale));    // it's a bit too big for our scene, so scale it down
         ourShader.setMat4("model", model);
-        //        ourModel.Draw(ourShader);
+        ourModel.Draw(ourShader);
         for(int i=0;i<n;i++){
             for(int j=0;j<n;j++){
                 model=
@@ -260,8 +261,36 @@ int main() {
             }
         }
 
-        //        if (programState->ImGuiEnabled)
-        //            DrawImGui(programState);
+//        model=glm::scale(glm::rotate(glm::translate(glm::mat4(1.0),glm::vec3(0,-1,0)),0.0f,glm::vec3(0,1,0)),glm::vec3(100,1,100));
+//        ourShader.setMat4("model",model);
+//        water.Draw(ourShader);
+
+        // don't forget to enable shader before setting uniforms
+        waterShader.use();
+
+        //        pointLight.position = glm::vec3(10.0 * cos(currentFrame), 0.0f, 10.0 * sin(currentFrame));
+        waterShader.setVec3("pointLight.position", pointLight.position);
+        waterShader.setVec3("pointLight.ambient", pointLight.ambient);
+        waterShader.setVec3("pointLight.diffuse", pointLight.diffuse);
+        waterShader.setVec3("pointLight.specular", pointLight.specular);
+        waterShader.setFloat("pointLight.constant", pointLight.constant);
+        waterShader.setFloat("pointLight.linear", pointLight.linear);
+        waterShader.setFloat("pointLight.quadratic", pointLight.quadratic);
+        waterShader.setVec3("viewPosition", programState->camera.Position);
+        waterShader.setFloat("material.shininess", 32.0f);
+
+        projection = glm::perspective(glm::radians(programState->camera.Zoom),
+                                                (float) SCR_WIDTH / (float) SCR_HEIGHT, 0.1f, 100.0f);
+        view = programState->camera.GetViewMatrix();
+        waterShader.setMat4("projection", projection);
+        waterShader.setMat4("view", view);
+
+        model=glm::scale(glm::rotate(glm::translate(glm::mat4(1.0),glm::vec3(0,-1,0)),0.0f,glm::vec3(0,1,0)),glm::vec3(100,1,100));
+        waterShader.setMat4("model",model);
+        water.Draw(waterShader);
+
+//        if (programState->ImGuiEnabled)
+//            DrawImGui(programState);
 
 
 
