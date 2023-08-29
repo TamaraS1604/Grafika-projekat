@@ -19,6 +19,19 @@
 #include<cstdlib>
 #include<ctime>
 
+class Tile{
+public:
+    int modelId,rotation,top,left,right,bottom;
+    Tile(int modelId,int rotation,int top,int bottom,int left,int right){
+        this->top=top;
+        this->bottom=bottom;
+        this->left=left;
+        this->right=right;
+        this->modelId=modelId;
+        this->rotation=rotation;
+    }
+};
+
 void framebuffer_size_callback(GLFWwindow *window, int width, int height);
 
 void mouse_callback(GLFWwindow *window, double xpos, double ypos);
@@ -104,6 +117,161 @@ ProgramState *programState;
 
 void DrawImGui(ProgramState *programState);
 
+void drawWater(Shader waterShader,PointLight pointLight,Model water){
+    waterShader.use();
+
+    //        pointLight.position = glm::vec3(10.0 * cos(currentFrame), 0.0f, 10.0 * sin(currentFrame));
+    waterShader.setVec3("pointLight.position", pointLight.position);
+    waterShader.setVec3("pointLight.ambient", pointLight.ambient);
+    waterShader.setVec3("pointLight.diffuse", pointLight.diffuse);
+    waterShader.setVec3("pointLight.specular", pointLight.specular);
+    waterShader.setFloat("pointLight.constant", pointLight.constant);
+    waterShader.setFloat("pointLight.linear", pointLight.linear);
+    waterShader.setFloat("pointLight.quadratic", pointLight.quadratic);
+    waterShader.setVec3("viewPosition", programState->camera.Position);
+    waterShader.setFloat("material.shininess", 32.0f);
+
+    glm::mat4 projection = glm::perspective(glm::radians(programState->camera.Zoom),
+                                  (float) SCR_WIDTH / (float) SCR_HEIGHT, 0.1f, 100.0f);
+    glm::mat4 view = programState->camera.GetViewMatrix();
+    waterShader.setMat4("projection", projection);
+    waterShader.setMat4("view", view);
+
+    glm::mat4 model=glm::scale(glm::rotate(glm::translate(glm::mat4(1.0),glm::vec3(0,-1,0)),0.0f,glm::vec3(0,1,0)),glm::vec3(100,1,100));
+    waterShader.setMat4("model",model);
+    water.Draw(waterShader);
+
+}
+#define N 20
+void drawMap(Shader ourShader,PointLight pointLight,int n,Model *models,int map[N][N],std::vector<Tile> tiles){
+    ourShader.use();
+    //        pointLight.position = glm::vec3(10.0 * cos(currentFrame), 0.0f, 10.0 * sin(currentFrame));
+    ourShader.setVec3("pointLight.position", pointLight.position);
+    ourShader.setVec3("pointLight.ambient", pointLight.ambient);
+    ourShader.setVec3("pointLight.diffuse", pointLight.diffuse);
+    ourShader.setVec3("pointLight.specular", pointLight.specular);
+    ourShader.setFloat("pointLight.constant", pointLight.constant);
+    ourShader.setFloat("pointLight.linear", pointLight.linear);
+    ourShader.setFloat("pointLight.quadratic", pointLight.quadratic);
+    ourShader.setVec3("viewPosition", programState->camera.Position);
+    ourShader.setFloat("material.shininess", 32.0f);
+    // view/projection transformations
+    glm::mat4 projection = glm::perspective(glm::radians(programState->camera.Zoom),
+                                            (float) SCR_WIDTH / (float) SCR_HEIGHT, 0.1f, 100.0f);
+    glm::mat4 view = programState->camera.GetViewMatrix();
+    ourShader.setMat4("projection", projection);
+    ourShader.setMat4("view", view);
+
+    // render the loaded model
+    glm::mat4 model = glm::mat4(1.0f);
+    model = glm::translate(model,
+                           programState->backpackPosition); // translate it down so it's at the center of the scene
+
+    for(int i=0;i<n;i++){
+        for(int j=0;j<n;j++){
+            if(map[i][j]==-1)continue;
+            model=
+                glm::rotate(glm::translate(glm::mat4(1.0),glm::vec3(i,0,j)),tiles[map[i][j]].rotation*1.57079633f,glm::vec3(0,1,0));
+            ourShader.setMat4("model",model);
+            models[tiles[map[i][j]].modelId].Draw(ourShader);
+        }
+    }
+//    for(int i=0;i<8;i++){
+//        model=
+//            glm::rotate(glm::translate(glm::mat4(1.0),glm::vec3(i,0,0)),0.0f,glm::vec3(0,1,0));
+//        ourShader.setMat4("model",model);
+//        models[i].Draw(ourShader);
+//    }
+}
+
+std::vector<int> odrediMogucnosti(int mat[N][N],std::vector<Tile> tiles,int x,int y){
+    std::vector<int> availableTiles=std::vector<int>();
+    int top=2,bottom=2,left=2,right=2;
+    if(x+1<N && mat[x+1][y]!=-1){
+        right=tiles[mat[x+1][y]].left;
+    }
+    if(x-1>=0 && mat[x-1][y]!=-1){
+        left=tiles[mat[x-1][y]].right;
+    }
+    if(y+1<N && mat[x][y+1]!=-1){
+        bottom=tiles[mat[x][y+1]].top;
+    }
+    if(y-1>=0 && mat[x][y-1]!=-1){
+        top=tiles[mat[x][y-1]].bottom;
+    }
+    for(int i=0;i<tiles.size();i++){
+        int odgovara=1;
+        if(top!=2&&tiles[i].bottom!=top)odgovara=0;
+        if(bottom!=2&&tiles[i].top!=bottom)odgovara=0;
+        if(left!=2&&tiles[i].right!=left)odgovara=0;
+        if(right!=2&&tiles[i].left!=right)odgovara=0;
+        if(odgovara==1)availableTiles.push_back(i);
+    }
+
+    return availableTiles;
+//    return std::vector<int>();
+
+}
+
+int backTracking(int mat[N][N],std::vector<Tile> tiles,int x,int y){
+    if(x>=N||y>=N)
+        return 1;
+    if(mat[x][y]!=-1)
+        return backTracking(mat,tiles,(x+1)%N,y+((x+1)/N));
+    std::vector<int> mogucnosti=odrediMogucnosti(mat, tiles, x, y);
+    //std::cout<<mogucnosti.size();
+
+        for(int i=0;i<mogucnosti.size();i++){
+            int j=rand()%(mogucnosti.size());
+            int p=mogucnosti[i];
+            mogucnosti[i]=mogucnosti[j];
+            mogucnosti[j]=p;
+        }
+        for(int i=0;i<mogucnosti.size();i++){
+//      for(int i=mogucnosti.size()-1;i>=0;i--){
+            mat[x][y]=mogucnosti[i];
+
+            if(backTracking(mat,tiles,(x+1)%N,y+((x+1)/N))){
+                return 1;
+            }
+
+            mat[x][y]=-1;
+        }
+
+
+
+    return 0;
+}
+
+void generateMap(int map[N][N],std::vector<Tile> tiles){
+    srand(time(NULL));
+    for(int i=0;i<N;i++){
+        for(int j=0;j<N;j++){
+//            map[i][j]=rand()%6;
+            map[i][j]=-1;
+        }
+    }
+    map[0][0]=7;
+    map[4][5]=7;
+
+    map[7][7]=7;
+
+    map[11][11]=7;
+    //std::cout<<"\npocinje da generise mapu\n";
+    backTracking(map,tiles,0,0);
+    for(int i=0;i<N;i++){
+        for(int j=0;j<N;j++){
+            std::cout<<map[i][j]<<"   ";
+        }
+        std::cout<<"\n";
+    }
+}
+
+void clear(){
+    glClearColor(0.0f,0.0f,0.0f,1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+}
+
 int main() {
     // glfw: initialize and configure
     // ------------------------------
@@ -173,23 +341,49 @@ int main() {
     ourModel.SetShaderTextureNamePrefix("material.");
 
     Model models[]={
-        Model("resources/objects/dungeon/model/obj/wall.obj"),
-        Model("resources/objects/dungeon/model/obj/stairs.obj"),
-        Model("resources/objects/dungeon/model/obj/wall-narrow.obj"),
-        Model("resources/objects/dungeon/model/obj/wood-support.obj"),
-        Model("resources/objects/dungeon/model/obj/floor.obj"),
         Model("resources/objects/dungeon/model/obj/dirt.obj"),
+        Model("resources/objects/dungeon/model/obj/stairs.obj"),
         Model("resources/objects/dungeon/model/obj/barrel.obj"),
-        Model("resources/objects/dungeon/model/obj/trap.obj"),
+        Model("resources/objects/dungeon/model/obj/wall-narrow.obj"),
+        Model("resources/objects/dungeon/model/obj/wall-opening.obj"),
+        Model("resources/objects/dungeon/model/obj/wall-half.obj"),
+        Model("resources/objects/dungeon/model/obj/floor.obj"),
     };
-    srand(time(NULL));
-    int n=20;
-    int map[20][20];
-    for(int i=0;i<n;i++){
-        for(int j=0;j<n;j++){
-            map[i][j]=rand()%8;
-        }
-    }
+
+    std::vector<Tile> tiles({
+        //dirt
+        Tile(0,0,1,1,1,1),
+        //stairs
+        Tile(1,0,1,0,0,0),
+        Tile(1,1,0,0,1,0),
+        Tile(1,2,0,1,0,0),
+        Tile(1,3,0,0,0,1),
+        //barrel
+        Tile(2,0,0,0,0,0),
+        //wall-Narrow
+        Tile(3,0,1,1,0,0),
+        Tile(3,1,0,0,1,1),
+        //wall-Opening
+        Tile(4,0,1,1,0,0),
+        Tile(4,1,0,0,1,1),
+        //wall-half
+        Tile(5,0,1,0,1,1),
+        Tile(5,1,1,1,1,0),
+        Tile(5,2,0,1,1,1),
+        Tile(5,3,1,1,0,1),
+        Tile(6,0,0,0,0,0),
+        Tile(6,0,0,0,0,0),
+        Tile(6,0,0,0,0,0),
+        Tile(6,0,0,0,0,0),
+        Tile(6,0,0,0,0,0),
+        Tile(6,0,0,0,0,0),
+    });
+
+
+
+    int map[N][N];
+    generateMap(map,tiles);
+
     Model water("resources/objects/water/water.obj");
 
     PointLight& pointLight = programState->pointLight;
@@ -203,12 +397,6 @@ int main() {
     pointLight.quadratic = 0.0f;
 
 
-
-    // draw in wireframe
-    //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-
-    // render loop
-    // -----------
     while (!glfwWindowShouldClose(window)) {
         // per-frame time logic
         // --------------------
@@ -216,86 +404,18 @@ int main() {
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
 
-        // input
-        // -----
         processInput(window);
 
+        clear();
 
-        // render
-        // ------
-        glClearColor(0.0f,0.0f,0.0f,1.0f);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        drawMap(ourShader,pointLight,N,models,map,tiles);
 
-        // don't forget to enable shader before setting uniforms
-        ourShader.use();
-//        pointLight.position = glm::vec3(10.0 * cos(currentFrame), 0.0f, 10.0 * sin(currentFrame));
-        ourShader.setVec3("pointLight.position", pointLight.position);
-        ourShader.setVec3("pointLight.ambient", pointLight.ambient);
-        ourShader.setVec3("pointLight.diffuse", pointLight.diffuse);
-        ourShader.setVec3("pointLight.specular", pointLight.specular);
-        ourShader.setFloat("pointLight.constant", pointLight.constant);
-        ourShader.setFloat("pointLight.linear", pointLight.linear);
-        ourShader.setFloat("pointLight.quadratic", pointLight.quadratic);
-        ourShader.setVec3("viewPosition", programState->camera.Position);
-        ourShader.setFloat("material.shininess", 32.0f);
-        // view/projection transformations
-        glm::mat4 projection = glm::perspective(glm::radians(programState->camera.Zoom),
-                                                (float) SCR_WIDTH / (float) SCR_HEIGHT, 0.1f, 100.0f);
-        glm::mat4 view = programState->camera.GetViewMatrix();
-        ourShader.setMat4("projection", projection);
-        ourShader.setMat4("view", view);
 
-        // render the loaded model
-        glm::mat4 model = glm::mat4(1.0f);
-        model = glm::translate(model,
-                               programState->backpackPosition); // translate it down so it's at the center of the scene
-        model = glm::scale(model, glm::vec3(programState->backpackScale));    // it's a bit too big for our scene, so scale it down
-        ourShader.setMat4("model", model);
-        ourModel.Draw(ourShader);
-        for(int i=0;i<n;i++){
-            for(int j=0;j<n;j++){
-                model=
-                    glm::rotate(glm::translate(glm::mat4(1.0),glm::vec3(i,0,j)),0.0f,glm::vec3(0,1,0));
-                ourShader.setMat4("model",model);
-                models[map[i][j]].Draw(ourShader);
-            }
-        }
-
-//        model=glm::scale(glm::rotate(glm::translate(glm::mat4(1.0),glm::vec3(0,-1,0)),0.0f,glm::vec3(0,1,0)),glm::vec3(100,1,100));
-//        ourShader.setMat4("model",model);
-//        water.Draw(ourShader);
-
-        // don't forget to enable shader before setting uniforms
-        waterShader.use();
-
-        //        pointLight.position = glm::vec3(10.0 * cos(currentFrame), 0.0f, 10.0 * sin(currentFrame));
-        waterShader.setVec3("pointLight.position", pointLight.position);
-        waterShader.setVec3("pointLight.ambient", pointLight.ambient);
-        waterShader.setVec3("pointLight.diffuse", pointLight.diffuse);
-        waterShader.setVec3("pointLight.specular", pointLight.specular);
-        waterShader.setFloat("pointLight.constant", pointLight.constant);
-        waterShader.setFloat("pointLight.linear", pointLight.linear);
-        waterShader.setFloat("pointLight.quadratic", pointLight.quadratic);
-        waterShader.setVec3("viewPosition", programState->camera.Position);
-        waterShader.setFloat("material.shininess", 32.0f);
-
-        projection = glm::perspective(glm::radians(programState->camera.Zoom),
-                                                (float) SCR_WIDTH / (float) SCR_HEIGHT, 0.1f, 100.0f);
-        view = programState->camera.GetViewMatrix();
-        waterShader.setMat4("projection", projection);
-        waterShader.setMat4("view", view);
-
-        model=glm::scale(glm::rotate(glm::translate(glm::mat4(1.0),glm::vec3(0,-1,0)),0.0f,glm::vec3(0,1,0)),glm::vec3(100,1,100));
-        waterShader.setMat4("model",model);
-        water.Draw(waterShader);
+        drawWater(waterShader,pointLight,water);
 
 //        if (programState->ImGuiEnabled)
 //            DrawImGui(programState);
 
-
-
-        // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
-        // -------------------------------------------------------------------------------
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
