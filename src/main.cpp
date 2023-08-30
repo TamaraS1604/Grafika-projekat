@@ -12,7 +12,7 @@
 #include <learnopengl/filesystem.h>
 #include <learnopengl/shader.h>
 #include <learnopengl/camera.h>
-#include <learnopengl/model.h>
+#include "Model.h"
 
 #include <iostream>
 #include<vector>
@@ -41,6 +41,8 @@ void scroll_callback(GLFWwindow *window, double xoffset, double yoffset);
 void processInput(GLFWwindow *window);
 
 void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods);
+
+unsigned int loadCubemap(vector<std::string> faces);
 
 // settings
 const unsigned int SCR_WIDTH = 800;
@@ -117,8 +119,25 @@ ProgramState *programState;
 
 void DrawImGui(ProgramState *programState);
 
-void drawWater(Shader waterShader,PointLight pointLight,Model water){
+void drawWater(Shader waterShader,PointLight pointLight,Model water, Texture waterTexture, Texture normalTexture){
     waterShader.use();
+
+    glActiveTexture(GL_TEXTURE0); // active proper texture unit before binding
+
+    // now set the sampler to the correct texture unit
+    glUniform1i(glGetUniformLocation(waterShader.ID, "waterTexture"), 0);
+    // and finally bind the texture
+    glBindTexture(GL_TEXTURE_2D, waterTexture.id);
+
+    glActiveTexture(GL_TEXTURE1); // active proper texture unit before binding
+
+    // now set the sampler to the correct texture unit
+    glUniform1i(glGetUniformLocation(waterShader.ID, "normalTexture"), 1);
+    // and finally bind the texture
+    glBindTexture(GL_TEXTURE_2D, normalTexture.id);
+
+    waterShader.setInt("waterTexture",0);
+    waterShader.setInt("normalTexture",1);
 
     //        pointLight.position = glm::vec3(10.0 * cos(currentFrame), 0.0f, 10.0 * sin(currentFrame));
     waterShader.setVec3("pointLight.position", pointLight.position);
@@ -131,6 +150,7 @@ void drawWater(Shader waterShader,PointLight pointLight,Model water){
     waterShader.setVec3("viewPosition", programState->camera.Position);
     waterShader.setFloat("material.shininess", 32.0f);
 
+    glDisable(GL_CULL_FACE);
     glm::mat4 projection = glm::perspective(glm::radians(programState->camera.Zoom),
                                   (float) SCR_WIDTH / (float) SCR_HEIGHT, 0.1f, 100.0f);
     glm::mat4 view = programState->camera.GetViewMatrix();
@@ -140,9 +160,14 @@ void drawWater(Shader waterShader,PointLight pointLight,Model water){
     glm::mat4 model=glm::scale(glm::rotate(glm::translate(glm::mat4(1.0),glm::vec3(0,-1,0)),0.0f,glm::vec3(0,1,0)),glm::vec3(100,1,100));
     waterShader.setMat4("model",model);
     water.Draw(waterShader);
+    glEnable(GL_CULL_FACE);
+
+
 
 }
 #define N 20
+#define NUMBER_OF_TILES 16
+std::vector<Tile>* tiles_g;
 void drawMap(Shader ourShader,PointLight pointLight,int n,Model *models,int map[N][N],std::vector<Tile> tiles){
     ourShader.use();
     //        pointLight.position = glm::vec3(10.0 * cos(currentFrame), 0.0f, 10.0 * sin(currentFrame));
@@ -163,6 +188,7 @@ void drawMap(Shader ourShader,PointLight pointLight,int n,Model *models,int map[
     ourShader.setMat4("view", view);
 
     // render the loaded model
+    glDisable(GL_CULL_FACE);
     glm::mat4 model = glm::mat4(1.0f);
     model = glm::translate(model,
                            programState->backpackPosition); // translate it down so it's at the center of the scene
@@ -176,6 +202,7 @@ void drawMap(Shader ourShader,PointLight pointLight,int n,Model *models,int map[
             models[tiles[map[i][j]].modelId].Draw(ourShader);
         }
     }
+    glEnable(GL_CULL_FACE);
 //    for(int i=0;i<8;i++){
 //        model=
 //            glm::rotate(glm::translate(glm::mat4(1.0),glm::vec3(i,0,0)),0.0f,glm::vec3(0,1,0));
@@ -251,12 +278,6 @@ void generateMap(int map[N][N],std::vector<Tile> tiles){
             map[i][j]=-1;
         }
     }
-    map[0][0]=7;
-    map[4][5]=7;
-
-    map[7][7]=7;
-
-    map[11][11]=7;
     //std::cout<<"\npocinje da generise mapu\n";
     backTracking(map,tiles,0,0);
     for(int i=0;i<N;i++){
@@ -286,7 +307,7 @@ int main() {
 
     // glfw window creation
     // --------------------
-    GLFWwindow *window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "LearnOpenGL", NULL, NULL);
+    GLFWwindow *window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "Tamara's project", NULL, NULL);
     if (window == NULL) {
         std::cout << "Failed to create GLFW window" << std::endl;
         glfwTerminate();
@@ -330,10 +351,86 @@ int main() {
     // -----------------------------
     glEnable(GL_DEPTH_TEST);
 
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
+    glFrontFace(GL_CW);
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
     // build and compile shaders
     // -------------------------
     Shader ourShader("resources/shaders/2.model_lighting.vs", "resources/shaders/2.model_lighting.fs");
     Shader waterShader("resources/shaders/water.vs", "resources/shaders/water.fs");
+    Shader skyboxShader("resources/shaders/skybox.vs", "resources/shaders/skybox.fs");
+
+    float skyboxVertices[] = {
+        -1.0f,  1.0f, -1.0f,
+        -1.0f, -1.0f, -1.0f,
+        1.0f, -1.0f, -1.0f,
+        1.0f, -1.0f, -1.0f,
+        1.0f,  1.0f, -1.0f,
+        -1.0f,  1.0f, -1.0f,
+
+        -1.0f, -1.0f,  1.0f,
+        -1.0f, -1.0f, -1.0f,
+        -1.0f,  1.0f, -1.0f,
+        -1.0f,  1.0f, -1.0f,
+        -1.0f,  1.0f,  1.0f,
+        -1.0f, -1.0f,  1.0f,
+
+        1.0f, -1.0f, -1.0f,
+        1.0f, -1.0f,  1.0f,
+        1.0f,  1.0f,  1.0f,
+        1.0f,  1.0f,  1.0f,
+        1.0f,  1.0f, -1.0f,
+        1.0f, -1.0f, -1.0f,
+
+        -1.0f, -1.0f,  1.0f,
+        -1.0f,  1.0f,  1.0f,
+        1.0f,  1.0f,  1.0f,
+        1.0f,  1.0f,  1.0f,
+        1.0f, -1.0f,  1.0f,
+        -1.0f, -1.0f,  1.0f,
+
+        -1.0f,  1.0f, -1.0f,
+        1.0f,  1.0f, -1.0f,
+        1.0f,  1.0f,  1.0f,
+        1.0f,  1.0f,  1.0f,
+        -1.0f,  1.0f,  1.0f,
+        -1.0f,  1.0f, -1.0f,
+
+        -1.0f, -1.0f, -1.0f,
+        -1.0f, -1.0f,  1.0f,
+        1.0f, -1.0f, -1.0f,
+        1.0f, -1.0f, -1.0f,
+        -1.0f, -1.0f,  1.0f,
+        1.0f, -1.0f,  1.0f
+    };
+    unsigned int skyboxVAO, skyboxVBO;
+    glGenVertexArrays(1, &skyboxVAO);
+    glGenBuffers(1, &skyboxVBO);
+    glBindVertexArray(skyboxVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, skyboxVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(skyboxVertices), &skyboxVertices, GL_STATIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+
+    vector<std::string> faces
+        {
+            FileSystem::getPath("resources/textures/skybox/right.jpg"),
+            FileSystem::getPath("resources/textures/skybox/left.jpg"),
+            FileSystem::getPath("resources/textures/skybox/top.jpg"),
+            FileSystem::getPath("resources/textures/skybox/bottom.jpg"),
+            FileSystem::getPath("resources/textures/skybox/front.jpg"),
+            FileSystem::getPath("resources/textures/skybox/back.jpg")
+        };
+    unsigned int cubemapTexture = loadCubemap(faces);
+
+    skyboxShader.use();
+    skyboxShader.setInt("skybox", 0);
+
+
 
     // load models
     // -----------
@@ -348,6 +445,10 @@ int main() {
         Model("resources/objects/dungeon/model/obj/wall-opening.obj"),
         Model("resources/objects/dungeon/model/obj/wall-half.obj"),
         Model("resources/objects/dungeon/model/obj/floor.obj"),
+        Model("resources/objects/dungeon/model/obj/floor-detail.obj"),
+        Model("resources/objects/dungeon/model/obj/rocks.obj"),
+        Model("resources/objects/dungeon/model/obj/wall.obj"),
+
     };
 
     std::vector<Tile> tiles({
@@ -355,36 +456,57 @@ int main() {
         Tile(0,0,1,1,1,1),
         //stairs
         Tile(1,0,1,0,0,0),
-        Tile(1,1,0,0,1,0),
-        Tile(1,2,0,1,0,0),
-        Tile(1,3,0,0,0,1),
+        Tile(1,0,0,0,0,1),
+        Tile(1,0,0,1,0,0),
+        Tile(1,0,0,0,1,0),
         //barrel
         Tile(2,0,0,0,0,0),
         //wall-Narrow
-        Tile(3,0,1,1,0,0),
-        Tile(3,1,0,0,1,1),
+        Tile(3,1,1,1,0,0),
+        Tile(3,0,0,0,1,1),
         //wall-Opening
-        Tile(4,0,1,1,0,0),
-        Tile(4,1,0,0,1,1),
+        Tile(4,1,1,1,0,0),
+        Tile(4,0,0,0,1,1),
         //wall-half
-        Tile(5,0,1,0,1,1),
-        Tile(5,1,1,1,1,0),
-        Tile(5,2,0,1,1,1),
-        Tile(5,3,1,1,0,1),
+//        Tile(5,0,1,0,1,1),
+//        Tile(5,1,1,1,1,0),
+//        Tile(5,2,0,1,1,1),
+//        Tile(5,3,1,1,0,1),
+        //floor
         Tile(6,0,0,0,0,0),
         Tile(6,0,0,0,0,0),
-        Tile(6,0,0,0,0,0),
-        Tile(6,0,0,0,0,0),
-        Tile(6,0,0,0,0,0),
-        Tile(6,0,0,0,0,0),
+        //floor detail
+        Tile(7,0,0,0,0,0),
+        Tile(7,0,0,0,0,0),
+        //stone
+        Tile(8,0,0,0,0,0),
+        Tile(8,0,0,0,0,0),
+        //wall
+        Tile(9,0,0,0,0,0),
+        Tile(9,0,0,0,0,0),
     });
 
-
+    tiles_g=&tiles;
 
     int map[N][N];
     generateMap(map,tiles);
 
     Model water("resources/objects/water/water.obj");
+
+    Texture waterTexture;
+    waterTexture.id = TextureFromFile("water.jpg", "resources/textures");
+    //texture.type = typeName;
+    waterTexture.path = "water.jpg";
+    //textures.push_back(texture);
+    //textures_loaded.push_back(texture);
+
+    Texture normalTexture;
+    normalTexture.id = TextureFromFile("normal.jpg", "resources/textures");
+//    //texture.type = typeName;
+    normalTexture.path = "normal.jpg";
+//    //textures.push_back(texture);
+//    //textures_loaded.push_back(texture);
+
 
     PointLight& pointLight = programState->pointLight;
     pointLight.position = glm::vec3(8.0f,8.0f,8.0f);
@@ -411,7 +533,26 @@ int main() {
         drawMap(ourShader,pointLight,N,models,map,tiles);
 
 
-        drawWater(waterShader,pointLight,water);
+        drawWater(waterShader,pointLight,water,waterTexture,normalTexture);
+
+
+        //skybox projection
+
+        glm::mat4 projection = glm::perspective(glm::radians(programState->camera.Zoom),
+                                                (float) SCR_WIDTH / (float) SCR_HEIGHT, 0.1f, 100.0f);
+        glm::mat4 view = programState->camera.GetViewMatrix();
+        //ourShader.setMat4("projection", projection);
+        //ourShader.setMat4("view", view);
+
+        glDepthFunc(GL_LEQUAL);
+        skyboxShader.use();
+        view = glm::mat4(glm::mat3(programState->camera.GetViewMatrix()));
+        skyboxShader.setMat4("view", view);
+        skyboxShader.setMat4("projection", projection);
+        glBindVertexArray(skyboxVAO);
+        glDrawArrays(GL_TRIANGLES, 0, 36);
+        glBindVertexArray(0);
+        glDepthFunc(GL_LESS);
 
 //        if (programState->ImGuiEnabled)
 //            DrawImGui(programState);
@@ -525,4 +666,41 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
             glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
         }
     }
+    if(key==GLFW_KEY_LEFT && action==GLFW_PRESS){
+        for(int i=1;i<=4;i++){
+            int rotation=(*tiles_g)[i].rotation;
+            rotation=(rotation+1)%4;
+            (*tiles_g)[i].rotation=rotation;
+        }
+        std::cout<<"press\n";
+    }
+}
+unsigned int loadCubemap(vector<std::string> faces)
+{
+    unsigned int textureID;
+    glGenTextures(1, &textureID);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, textureID);
+
+    int width, height, nrChannels;
+    for (unsigned int i = 0; i < faces.size(); i++)
+    {
+        unsigned char *data = stbi_load(faces[i].c_str(), &width, &height, &nrChannels, 0);
+        if (data)
+        {
+            glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+            stbi_image_free(data);
+        }
+        else
+        {
+            std::cout << "Cubemap texture failed to load at path: " << faces[i] << std::endl;
+            stbi_image_free(data);
+        }
+    }
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
+    return textureID;
 }

@@ -22,6 +22,7 @@ struct Material {
 in vec2 TexCoords;
 in vec3 Normal;
 in vec3 FragPos;
+in vec4 Color;
 
 uniform PointLight pointLight;
 uniform Material material;
@@ -43,7 +44,7 @@ vec3 CalcPointLight(PointLight light, vec3 normal, vec3 fragPos, vec3 viewDir)
 //     vec3 ambient = light.ambient * vec3(texture(material.texture_diffuse1, TexCoords));
 //     vec3 diffuse = light.diffuse * diff * vec3(texture(material.texture_diffuse1, TexCoords));
 //     vec3 specular = light.specular * spec * vec3(texture(material.texture_specular1, TexCoords).xxx);
-    vec3 color=vec3(1.0,0.75,0.26);
+    vec3 color=Color.rgb;
     vec3 ambient = light.ambient * color;
     vec3 diffuse = light.diffuse * diff * color;
     vec3 specular = light.specular * spec * 0.3;
@@ -61,4 +62,5 @@ void main()
     vec3 viewDir = normalize(viewPosition - FragPos);
     vec3 result = CalcPointLight(pointLight, normal, FragPos, viewDir);
     FragColor = vec4(result, 1.0);
+//    FragColor=Color;
 }

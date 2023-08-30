@@ -1,5 +1,7 @@
 #version 330 core
 out vec4 FragColor;
+sampler2D waterTexture;
+sampler2D normalTexture;
 
 struct PointLight {
     vec3 position;
@@ -74,5 +76,6 @@ void main()
     vec3 viewDir = normalize(viewPosition - FragPos);
 
 
-    FragColor=vec4(color*osvetljenje(pointLight,normal,FragPos,viewDir),1.0);
+    //FragColor=vec4(color*osvetljenje(pointLight,normal,FragPos,viewDir),1.0);
+    FragColor=texture(waterTexture,TexCoords);
 }
