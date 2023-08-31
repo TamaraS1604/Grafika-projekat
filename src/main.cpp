@@ -418,12 +418,12 @@ int main() {
 
     vector<std::string> faces
         {
-            FileSystem::getPath("resources/textures/skybox/right.jpg"),
-            FileSystem::getPath("resources/textures/skybox/left.jpg"),
-            FileSystem::getPath("resources/textures/skybox/top.jpg"),
-            FileSystem::getPath("resources/textures/skybox/bottom.jpg"),
-            FileSystem::getPath("resources/textures/skybox/front.jpg"),
-            FileSystem::getPath("resources/textures/skybox/back.jpg")
+            FileSystem::getPath("resources/textures/skybox/right.png"),
+            FileSystem::getPath("resources/textures/skybox/left.png"),
+            FileSystem::getPath("resources/textures/skybox/top.png"),
+            FileSystem::getPath("resources/textures/skybox/bottom.png"),
+            FileSystem::getPath("resources/textures/skybox/front.png"),
+            FileSystem::getPath("resources/textures/skybox/back.png")
         };
     unsigned int cubemapTexture = loadCubemap(faces);
 
@@ -448,6 +448,10 @@ int main() {
         Model("resources/objects/dungeon/model/obj/floor-detail.obj"),
         Model("resources/objects/dungeon/model/obj/rocks.obj"),
         Model("resources/objects/dungeon/model/obj/wall.obj"),
+        Model("resources/objects/dungeon/model/obj/column.obj"),
+        Model("resources/objects/dungeon/model/obj/stones.obj")
+        //Model("resources/objects/dungeon/model/obj/character-human.obj"),
+       // Model("resources/objects/dungeon/model/obj/character-orc.obj")
 
     };
 
@@ -455,10 +459,10 @@ int main() {
         //dirt
         Tile(0,0,1,1,1,1),
         //stairs
-        Tile(1,0,1,0,0,0),
-        Tile(1,0,0,0,0,1),
-        Tile(1,0,0,1,0,0),
-        Tile(1,0,0,0,1,0),
+//        Tile(1,0,1,0,0,0),
+//        Tile(1,0,0,0,0,1),
+//        Tile(1,0,0,1,0,0),
+//        Tile(1,0,0,0,1,0),
         //barrel
         Tile(2,0,0,0,0,0),
         //wall-Narrow
@@ -483,7 +487,16 @@ int main() {
         Tile(8,0,0,0,0,0),
         //wall
         Tile(9,0,0,0,0,0),
-        Tile(9,0,0,0,0,0),
+        //Tile(9,0,0,0,0,0),
+        //column
+        Tile(10,0,0,0,0,0),
+        //stones
+        Tile(11,0,0,0,0,0)
+        //human
+        //Tile(10,0,0,0,0,0),
+        //orc
+        //Tile(10,0,0,0,0,0)
+
     });
 
     tiles_g=&tiles;
@@ -550,6 +563,7 @@ int main() {
         skyboxShader.setMat4("view", view);
         skyboxShader.setMat4("projection", projection);
         glBindVertexArray(skyboxVAO);
+        glActiveTexture(GL_TEXTURE0);
         glDrawArrays(GL_TRIANGLES, 0, 36);
         glBindVertexArray(0);
         glDepthFunc(GL_LESS);
@@ -566,6 +580,9 @@ int main() {
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
+
+    glDeleteVertexArrays(1, &skyboxVAO);
+    glDeleteBuffers(1, &skyboxVBO);
     // glfw: terminate, clearing all previously allocated GLFW resources.
     // ------------------------------------------------------------------
     glfwTerminate();
