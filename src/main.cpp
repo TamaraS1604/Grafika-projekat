@@ -122,24 +122,9 @@ void DrawImGui(ProgramState *programState);
 void drawWater(Shader waterShader,PointLight pointLight,Model water, Texture waterTexture, Texture normalTexture){
     waterShader.use();
 
-    glActiveTexture(GL_TEXTURE0); // active proper texture unit before binding
+    glBindTexture(GL_TEXTURE_2D,waterTexture.id);
+    glBindTexture(GL_TEXTURE_2D,normalTexture.id);
 
-    // now set the sampler to the correct texture unit
-    glUniform1i(glGetUniformLocation(waterShader.ID, "waterTexture"), 0);
-    // and finally bind the texture
-    glBindTexture(GL_TEXTURE_2D, waterTexture.id);
-
-    glActiveTexture(GL_TEXTURE1); // active proper texture unit before binding
-
-    // now set the sampler to the correct texture unit
-    glUniform1i(glGetUniformLocation(waterShader.ID, "normalTexture"), 1);
-    // and finally bind the texture
-    glBindTexture(GL_TEXTURE_2D, normalTexture.id);
-
-    waterShader.setInt("waterTexture",0);
-    waterShader.setInt("normalTexture",1);
-
-    //        pointLight.position = glm::vec3(10.0 * cos(currentFrame), 0.0f, 10.0 * sin(currentFrame));
     waterShader.setVec3("pointLight.position", pointLight.position);
     waterShader.setVec3("pointLight.ambient", pointLight.ambient);
     waterShader.setVec3("pointLight.diffuse", pointLight.diffuse);
@@ -148,19 +133,20 @@ void drawWater(Shader waterShader,PointLight pointLight,Model water, Texture wat
     waterShader.setFloat("pointLight.linear", pointLight.linear);
     waterShader.setFloat("pointLight.quadratic", pointLight.quadratic);
     waterShader.setVec3("viewPosition", programState->camera.Position);
+
     waterShader.setFloat("material.shininess", 32.0f);
 
-    glDisable(GL_CULL_FACE);
+    glEnable(GL_CULL_FACE);
     glm::mat4 projection = glm::perspective(glm::radians(programState->camera.Zoom),
                                   (float) SCR_WIDTH / (float) SCR_HEIGHT, 0.1f, 100.0f);
     glm::mat4 view = programState->camera.GetViewMatrix();
     waterShader.setMat4("projection", projection);
     waterShader.setMat4("view", view);
 
-    glm::mat4 model=glm::scale(glm::rotate(glm::translate(glm::mat4(1.0),glm::vec3(0,-1,0)),0.0f,glm::vec3(0,1,0)),glm::vec3(100,1,100));
+    glm::mat4 model=glm::scale(glm::rotate(glm::translate(glm::mat4(1.0),glm::vec3(0,-0.001,0)),0.0f,glm::vec3(0,1,0)),glm::vec3(100,1,100));
     waterShader.setMat4("model",model);
     water.Draw(waterShader);
-    glEnable(GL_CULL_FACE);
+    glDisable(GL_CULL_FACE);
 
 
 
@@ -170,7 +156,6 @@ void drawWater(Shader waterShader,PointLight pointLight,Model water, Texture wat
 std::vector<Tile>* tiles_g;
 void drawMap(Shader ourShader,PointLight pointLight,int n,Model *models,int map[N][N],std::vector<Tile> tiles){
     ourShader.use();
-    //        pointLight.position = glm::vec3(10.0 * cos(currentFrame), 0.0f, 10.0 * sin(currentFrame));
     ourShader.setVec3("pointLight.position", pointLight.position);
     ourShader.setVec3("pointLight.ambient", pointLight.ambient);
     ourShader.setVec3("pointLight.diffuse", pointLight.diffuse);
@@ -188,27 +173,63 @@ void drawMap(Shader ourShader,PointLight pointLight,int n,Model *models,int map[
     ourShader.setMat4("view", view);
 
     // render the loaded model
-    glDisable(GL_CULL_FACE);
+    glEnable(GL_CULL_FACE);
     glm::mat4 model = glm::mat4(1.0f);
     model = glm::translate(model,
                            programState->backpackPosition); // translate it down so it's at the center of the scene
 
     for(int i=0;i<n;i++){
         for(int j=0;j<n;j++){
+            float x=i*2;
+            float y=0;
+            float z=j*2;
+            float pi_half=1.57079633f;
             if(map[i][j]==-1)continue;
             model=
-                glm::rotate(glm::translate(glm::mat4(1.0),glm::vec3(i,0,j)),tiles[map[i][j]].rotation*1.57079633f,glm::vec3(0,1,0));
+                glm::rotate(glm::translate(glm::mat4(1.0),glm::vec3(x,y,z)),tiles[map[i][j]].rotation*pi_half,glm::vec3(0,1,0));
             ourShader.setMat4("model",model);
             models[tiles[map[i][j]].modelId].Draw(ourShader);
+            models[2].Draw(ourShader);
+            if(i<N-1){
+                int left=tiles[map[i][j]].right;
+                int right=tiles[map[i+1][j]].left;
+                int top=0,bottom=0;
+                for(int k=0;k<tiles.size();k++){
+                    if(tiles[k].left==left&&tiles[k].right==right&&tiles[k].top==top&&tiles[k].bottom==bottom){
+                        model=
+                            glm::rotate(glm::translate(glm::mat4(1.0),glm::vec3(x+1,y,z)),tiles[k].rotation*pi_half,glm::vec3(0,1,0));
+                        ourShader.setMat4("model",model);
+                        models[tiles[k].modelId].Draw(ourShader);
+                        models[2].Draw(ourShader);
+                        break;
+                    }
+                }
+            }
+            if(j<N-1){
+                int top=tiles[map[i][j]].bottom;
+                int bottom=tiles[map[i][j+1]].top;
+                int left=0,right=0;
+                for(int k=0;k<tiles.size();k++){
+                    if(tiles[k].left==left&&tiles[k].right==right&&tiles[k].top==top&&tiles[k].bottom==bottom){
+                        model=
+                            glm::rotate(glm::translate(glm::mat4(1.0),glm::vec3(x,y,z+1)),tiles[k].rotation*pi_half,glm::vec3(0,1,0));
+                        ourShader.setMat4("model",model);
+                        models[tiles[k].modelId].Draw(ourShader);
+                        models[2].Draw(ourShader);
+                        break;
+                    }
+                }
+            }
+            if(j<N-1&&i<N-1){
+                model=
+                    glm::rotate(glm::translate(glm::mat4(1.0),glm::vec3(x+1,y,z+1)),0.0f,glm::vec3(0,1,0));
+                ourShader.setMat4("model",model);
+                models[2].Draw(ourShader);
+            }
         }
     }
-    glEnable(GL_CULL_FACE);
-//    for(int i=0;i<8;i++){
-//        model=
-//            glm::rotate(glm::translate(glm::mat4(1.0),glm::vec3(i,0,0)),0.0f,glm::vec3(0,1,0));
-//        ourShader.setMat4("model",model);
-//        models[i].Draw(ourShader);
-//    }
+
+    glDisable(GL_CULL_FACE);
 }
 
 std::vector<int> odrediMogucnosti(int mat[N][N],std::vector<Tile> tiles,int x,int y){
@@ -228,16 +249,13 @@ std::vector<int> odrediMogucnosti(int mat[N][N],std::vector<Tile> tiles,int x,in
     }
     for(int i=0;i<tiles.size();i++){
         int odgovara=1;
-        if(top!=2&&tiles[i].bottom!=top)odgovara=0;
-        if(bottom!=2&&tiles[i].top!=bottom)odgovara=0;
-        if(left!=2&&tiles[i].right!=left)odgovara=0;
-        if(right!=2&&tiles[i].left!=right)odgovara=0;
+        if((top!=2)&&(tiles[i].top!=top))odgovara=0;
+        if((bottom!=2)&&(tiles[i].bottom!=bottom))odgovara=0;
+        if((left!=2)&&(tiles[i].left!=left))odgovara=0;
+        if((right!=2)&&(tiles[i].right!=right))odgovara=0;
         if(odgovara==1)availableTiles.push_back(i);
     }
-
     return availableTiles;
-//    return std::vector<int>();
-
 }
 
 int backTracking(int mat[N][N],std::vector<Tile> tiles,int x,int y){
@@ -246,27 +264,20 @@ int backTracking(int mat[N][N],std::vector<Tile> tiles,int x,int y){
     if(mat[x][y]!=-1)
         return backTracking(mat,tiles,(x+1)%N,y+((x+1)/N));
     std::vector<int> mogucnosti=odrediMogucnosti(mat, tiles, x, y);
-    //std::cout<<mogucnosti.size();
+    for(int i=0;i<mogucnosti.size();i++){
+        int j=rand()%(mogucnosti.size());
+        int p=mogucnosti[i];
+        mogucnosti[i]=mogucnosti[j];
+        mogucnosti[j]=p;
+    }
+    for(int i=0;i<mogucnosti.size();i++){
+        mat[x][y]=mogucnosti[i];
 
-        for(int i=0;i<mogucnosti.size();i++){
-            int j=rand()%(mogucnosti.size());
-            int p=mogucnosti[i];
-            mogucnosti[i]=mogucnosti[j];
-            mogucnosti[j]=p;
+        if(backTracking(mat,tiles,(x+1)%N,y+((x+1)/N))==1){
+            return 1;
         }
-        for(int i=0;i<mogucnosti.size();i++){
-//      for(int i=mogucnosti.size()-1;i>=0;i--){
-            mat[x][y]=mogucnosti[i];
-
-            if(backTracking(mat,tiles,(x+1)%N,y+((x+1)/N))){
-                return 1;
-            }
-
-            mat[x][y]=-1;
-        }
-
-
-
+        mat[x][y]=-1;
+    }
     return 0;
 }
 
@@ -274,18 +285,16 @@ void generateMap(int map[N][N],std::vector<Tile> tiles){
     srand(time(NULL));
     for(int i=0;i<N;i++){
         for(int j=0;j<N;j++){
-//            map[i][j]=rand()%6;
             map[i][j]=-1;
         }
     }
-    //std::cout<<"\npocinje da generise mapu\n";
     backTracking(map,tiles,0,0);
-    for(int i=0;i<N;i++){
-        for(int j=0;j<N;j++){
-            std::cout<<map[i][j]<<"   ";
-        }
-        std::cout<<"\n";
-    }
+//    for(int i=0;i<N;i++){
+//        for(int j=0;j<N;j++){
+//            std::cout<<map[i][j]<<"   ";
+//        }
+//        std::cout<<"\n";
+//    }
 }
 
 void clear(){
@@ -329,7 +338,7 @@ int main() {
     }
 
     // tell stb_image.h to flip loaded texture's on the y-axis (before loading model).
-    stbi_set_flip_vertically_on_load(true);
+    //stbi_set_flip_vertically_on_load(true);
 
     programState = new ProgramState;
     //programState->LoadFromFile("resources/program_state.txt");
@@ -353,7 +362,7 @@ int main() {
 
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
-    glFrontFace(GL_CW);
+    glFrontFace(GL_CCW);
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -430,21 +439,15 @@ int main() {
     skyboxShader.use();
     skyboxShader.setInt("skybox", 0);
 
-
-
-    // load models
-    // -----------
-    Model ourModel("resources/objects/dungeon/model/obj/wall.obj");
-    ourModel.SetShaderTextureNamePrefix("material.");
-
+    //tile models
     Model models[]={
         Model("resources/objects/dungeon/model/obj/dirt.obj"),
         Model("resources/objects/dungeon/model/obj/stairs.obj"),
-        Model("resources/objects/dungeon/model/obj/barrel.obj"),
+        Model("resources/objects/dungeon/model/obj/floor.obj"),
         Model("resources/objects/dungeon/model/obj/wall-narrow.obj"),
         Model("resources/objects/dungeon/model/obj/wall-opening.obj"),
         Model("resources/objects/dungeon/model/obj/wall-half.obj"),
-        Model("resources/objects/dungeon/model/obj/floor.obj"),
+        Model("resources/objects/dungeon/model/obj/barrel.obj"),
         Model("resources/objects/dungeon/model/obj/floor-detail.obj"),
         Model("resources/objects/dungeon/model/obj/rocks.obj"),
         Model("resources/objects/dungeon/model/obj/wall.obj"),
@@ -454,16 +457,16 @@ int main() {
        // Model("resources/objects/dungeon/model/obj/character-orc.obj")
 
     };
-
+    //tiles
     std::vector<Tile> tiles({
         //dirt
         Tile(0,0,1,1,1,1),
         //stairs
-//        Tile(1,0,1,0,0,0),
-//        Tile(1,0,0,0,0,1),
-//        Tile(1,0,0,1,0,0),
-//        Tile(1,0,0,0,1,0),
-        //barrel
+        Tile(1,0,1,0,0,0),
+        Tile(1,3,0,0,0,1),
+        Tile(1,2,0,1,0,0),
+        Tile(1,1,0,0,1,0),
+        //floor
         Tile(2,0,0,0,0,0),
         //wall-Narrow
         Tile(3,1,1,1,0,0),
@@ -472,11 +475,11 @@ int main() {
         Tile(4,1,1,1,0,0),
         Tile(4,0,0,0,1,1),
         //wall-half
-//        Tile(5,0,1,0,1,1),
-//        Tile(5,1,1,1,1,0),
-//        Tile(5,2,0,1,1,1),
-//        Tile(5,3,1,1,0,1),
-        //floor
+        Tile(5,0,1,0,1,1),
+        Tile(5,1,1,1,1,0),
+        Tile(5,2,0,1,1,1),
+        Tile(5,3,1,1,0,1),
+        //barrel
         Tile(6,0,0,0,0,0),
         Tile(6,0,0,0,0,0),
         //floor detail
@@ -503,22 +506,38 @@ int main() {
 
     int map[N][N];
     generateMap(map,tiles);
+    for(int i=1;i<N-1;i++){
+        for(int j=1;j<N-1;j++){
+            if(tiles[map[i][j]].left!=tiles[map[i-1][j]].right)std::cout<<"greska\n";
+            if(tiles[map[i][j]].right!=tiles[map[i+1][j]].left)std::cout<<"greska\n";
+            if(tiles[map[i][j]].top!=tiles[map[i][j-1]].bottom)std::cout<<"greska\n";
+            if(tiles[map[i][j]].bottom!=tiles[map[i][j+1]].top)std::cout<<"greska\n";
+        }
+    }
 
     Model water("resources/objects/water/water.obj");
 
+    char waterTextureFileName[]="water1.jpg";
     Texture waterTexture;
-    waterTexture.id = TextureFromFile("water.jpg", "resources/textures");
-    //texture.type = typeName;
-    waterTexture.path = "water.jpg";
-    //textures.push_back(texture);
-    //textures_loaded.push_back(texture);
+    waterTexture.id = TextureFromFile(waterTextureFileName, "resources/textures");
+    waterTexture.path = waterTextureFileName;
+    if(waterTexture.id==0)std::cout<<"error: nece da se ucita water diffuse";
+    glBindTexture(GL_TEXTURE_2D,waterTexture.id);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
+    char normalTextureFileName[]="normal1.jpg";
     Texture normalTexture;
-    normalTexture.id = TextureFromFile("normal.jpg", "resources/textures");
-//    //texture.type = typeName;
-    normalTexture.path = "normal.jpg";
-//    //textures.push_back(texture);
-//    //textures_loaded.push_back(texture);
+    normalTexture.id = TextureFromFile(normalTextureFileName, "resources/textures");
+    normalTexture.path = normalTextureFileName;
+    if(normalTexture.id==0)std::cout<<"error: nece da se ucita water normal";
+    glBindTexture(GL_TEXTURE_2D,waterTexture.id);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
 
     PointLight& pointLight = programState->pointLight;
